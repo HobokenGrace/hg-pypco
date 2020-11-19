@@ -499,3 +499,273 @@ class PCO(): #pylint: disable=too-many-instance-attributes
                 'attributes': {} if attributes is None else attributes
             }
         }
+
+    def refresh_list(self, pco_list_id):
+        """ Updates the given Planning Center List.
+
+            Args:
+                pco_list_id (int): The ID of the given Planning Center List.
+
+            Returns:
+                dict: The payload returned by the API for this request.
+        """
+    # PCO API endpoint for running a given List
+    return self.post(f"/people/v2/lists/{pco_list_id}/run")
+
+
+    def get_list_attr(self, pco_list_id):
+        """ Provides the attributes dictionary for the given Planning Center List.
+
+            Args:
+                pco_list_id (int): The ID of the given Planning Center List.
+
+            Returns:
+                dict: {
+
+                    "auto_refresh": boolean
+                    "automations_active": boolean
+                    "automations_count": int
+                    "batch_completed_at": datetime-tz str
+                    "created_at": datetime-tz str
+                    "description": str
+                    "has_inactive_results": boolean
+                    "include_inactive": boolean
+                    "invalid": boolean
+                    "name": str
+                    "recently_viewed": boolean
+                    "refreshed_at": datetime-tz str
+                    "return_original_if_none": boolean
+                    "returns": str
+                    "starred": boolean
+                    "status": str
+                    "subset": str
+                    "total_people": int
+                    "updated_at": datetime-tz str
+
+                }
+
+
+        """
+        # Endpoint for request for desired PCO List
+        e = f"/people/v2/lists/{pco_list_id}"
+        # Response in JSON format
+        d = self.get(e)
+        # Ensure it's a List
+        if d['data']['type'] == 'List':
+            # Return List dictionary
+            return d['data']['attributes']
+
+
+    def get_list_members(self, pco_list_id):
+        """ Provides the members of the given Planning Center List.
+
+            Args:
+                pco_list_id (int): The ID of the given Planning Center List.
+
+            Returns:
+                dict: {
+
+                    "PersonID": int ,
+                    "PersonName": str ,
+                    "EmailAddress": str ,
+                    "PhoneNumber": str
+
+                }
+        """
+        # Endpoint for request for desired PCO List
+        e = f"/people/v2/lists/{pco_list_id}/people"
+        # List of People data
+        d = self.iterate(e, per_page=100)
+        l = []
+        # Ensure List has People
+        if d:
+            # Iterate over List People
+            for i in d:
+                # Ensure Person
+                if i['data']['type'] == 'Person':
+                    # Append Person
+                    l.append(
+                        {
+                            'PersonID': i['data']['id'],
+                            'PersonName': i['data']['attributes']['name'],
+                            'EmailAddress': get_person_email(i['data']['id']),
+                            'PhoneNumber': get_person_phone_number(i['data']['id'])
+                        }
+                    )
+        # Return list of People dicts
+        return l
+
+
+    def get_person_email(self, pco_person_id):
+        """ Provides the primary email address of the given Planning Center Person.
+
+            Args:
+                pco_person_id (int): The ID of the given Planning Center Person.
+
+            Returns:
+                str: person@domain.com
+
+        """
+        # Endpoint for request
+        e = f"/people/v2/people/{pco_person_id}/emails"
+        # List of Email data
+        d = self.get(e)
+        # Ensure Person has Email(s)
+        if d:
+            # Iterate over Email(s)
+            for i in d['data']:
+                # Ensure primary Email
+                if i['type'] == 'Email' and i['attributes']['primary']:
+                    # Return Email
+                    return (i['attributes']['address'].lower())
+
+
+    def get_person_phone_number(self, pco_person_id):
+        """ Provides the primary phone number of the given Planning Center Person.
+
+            Args:
+                pco_person_id (int): The ID of the given Planning Center Person.
+
+            Returns:
+                str: 1234567890
+
+        """
+        # Endpoint for request
+        e = f"/people/v2/people/{pco_person_id}/phone_numbers"
+        # List of Phone Number data
+        d = self.get(e)
+        # Ensure Person has Phone Number(s)
+        if d:
+            # Iterate over Phone Number(s)
+            for i in d['data']:
+                # Ensure primary Phone Number
+                if i['type'] == 'PhoneNumber' and i['attributes']['primary']:
+                    # Return Phone Number
+                    return ''.join(re.findall(r'\d+', i['attributes']['number']))
+
+
+    def get_teams(self):
+        """ Provides a list of all Planning Center Service Teams and their members.
+
+            Returns:
+                dict: {
+
+                    "TeamName": str ,
+                    "PersonID": int
+
+                }
+
+        """
+        # Endpoint for request
+        e = "/services/v2/teams"
+        # List of Team data
+        d = self.iterate(e, per_page=100)
+        l = []
+        # Iterate over Teams
+        for i in d:
+            # Ensure Team
+            if i['data']['type'] == 'Team':
+                # List of People in Team
+                p = get_pco_team_members(i['data']['id'])
+                # Iterate over People
+                for j in p:
+                    # Append Team
+                    l.append(
+                        {
+                            'TeamName': i['data']['attributes']['name'],
+                            'PersonID': j
+                        }
+                    )
+        # Return list of Team dicts
+        return l
+
+
+    def get_team_members(self, pco_team_id):
+        """ Provides a list of Person ID's for all People in given Planning Center Service Team.
+
+            Args:
+                pco_team_id (int): The ID of the given Planning Center Team.
+
+            Returns:
+                list: ID's of all Planning Center Persons in the Team.
+
+        """
+        # Endpoint for request
+        e = f"/services/v2/teams/{pco_team_id}/people"
+        # List of Team People data
+        d = self.iterate(e, per_page=100)
+        l = []
+        # Ensure Team has People
+        if d:
+            # Iterate over Team People
+            for i in d:
+                # Ensure Person
+                if i['data']['type'] == 'Person':
+                    # Append Person
+                    l.append(i['data']['id'])
+            # Return list of People
+        return l
+
+
+    def get_groups(self):
+        """ Provides a list of all Planning Center Groups and their members.
+
+            Returns:
+                dict: {
+
+                    "GroupName": str ,
+                    "PersonID": int
+
+                }
+
+
+        """
+        # Endpoint for request
+        e = "/groups/v2/groups"
+        # List of Group data
+        d = self.iterate(e, per_page=100)
+        l = []
+        # Iterate over Groups
+        for i in d:
+            # Ensure Group
+            if i['data']['type'] == 'Group':
+                 # List of People in Group
+                p = get_pco_group_members(i['data']['id'])
+                # Iterate over People
+                for j in p:
+                    # Append Group
+                    l.append(
+                        {
+                            'GroupName': i['data']['attributes']['name'],
+                            'PersonID': j
+                        }
+                    )
+        # Return list of Group dicts
+        return l
+
+
+    def get_group_members(self, pco_group_id):
+        """ Provides a list of Person ID's for all People in given Planning Center Group.
+
+            Args:
+                pco_group_id (int): The ID of the given Planning Center Group.
+
+            Returns:
+                list: ID's of all Planning Center Persons in the Group.
+
+        """
+        # Endpoint for request
+        e = f"/groups/v2/groups/{pco_group_id}/people"
+        # List of Team People data
+        d = self.iterate(e, per_page=100)
+        l = []
+        # Ensure Group has People
+        if d:
+            # Iterate over People
+            for i in d:
+                # Ensure Person
+                if i['data']['type'] == 'Person':
+                    # Append Person
+                    l.append(i['data']['id'])
+        # Return list of People
+        return l
